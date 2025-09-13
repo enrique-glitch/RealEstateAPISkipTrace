@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Skip Trace Results — RealEstateAPI</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <style>
+    body { padding: 1rem; }
+    .result-card { margin-bottom: 2rem; border: 1px solid #eee; padding: 1.5rem; border-radius: 8px; }
+    .muted { color: #666; font-size: 0.9rem; }
+    .section { margin-bottom: 1.5rem; }
+    .section h3 { border-bottom: 1px solid #eee; padding-bottom: 0.5rem; margin-bottom: 1rem; }
+    .contact-info { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+    .contact-method { flex: 1; min-width: 250px; }
+    .address { background: #f8f9fa; padding: 1rem; border-radius: 4px; }
+    .match-confidence { 
+      display: inline-block; 
+      padding: 0.25rem 0.5rem; 
+      border-radius: 4px; 
+      font-size: 0.8rem;
+      margin-left: 0.5rem;
+    }
+    .high-confidence { background: #d4edda; color: #155724; }
+    .medium-confidence { background: #fff3cd; color: #856404; }
+    .low-confidence { background: #f8d7da; color: #721c24; }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <nav>
+      <ul>
+        <li><a href="{{ url_for('index') }}" role="button" class="secondary">← New Search</a></li>
+      </ul>
+    </nav>
+
+    <h1>Skip Trace Results</h1>
+    
+    {% if error %}
+      <article style="background: #fff3f3; border-left: 4px solid #ff6b6b; padding: 1rem; margin-bottom: 1.5rem;">
+        <strong>Error:</strong> {{ error }}
+      </article>
+    {% endif %}
+
+    {% if not result or not result.get('match') %}
+      <article>
+        <p>No matching records found. Try adjusting your search criteria.</p>
+      </article>
+    {% else %}
+      <div class="result-card">
+        <!-- Identity Section -->
+        <div class="section">
+          <h3>Identity Information</h3>
+          {% if result.identity.names %}
+            <div class="grid">
+              {% for name in result.identity.names %}
+                <div>
+                  <h4 style="margin-bottom: 0.25rem;">
+                    {{ name.full_name }}
+                    {% if loop.first %}<span class="match-confidence high-confidence">Primary</span>{% endif %}
+                  </h4>
+                  <div class="muted">
+                    {{ name.type if name.type else 'Primary' }}
+                    {% if name.last_seen %}| Last seen: {{ name.last_seen }}{% endif %}
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+
+        <!-- Contact Information -->
+        <div class="section">
+          <h3>Contact Information</h3>
+          <div class="contact-info">
+            {% if result.identity.phones %}
+              <div class="contact-method">
+                <h4>Phone Numbers</h4>
+                <ul>
+                  {% for phone in result.identity.phones %}
+                    <li>
+                      {{ phone.number }} 
+                      <span class="muted">({{ phone.phoneType }})</span>
+                      {% if phone.isConnected %}<span class="muted">• Connected</span>{% endif %}
+                      {% if phone.last_seen %}<div class="muted">Last seen: {{ phone.last_seen }}</div>{% endif %}
+                    </li>
+                  {% endfor %}
+                </ul>
+              </div>
+            {% endif %}
+
+            {% if result.identity.emails %}
+              <div class="contact-method">
+                <h4>Email Addresses</h4>
+                <ul>
+                  {% for email in result.identity.emails %}
+                    <li>
+                      {{ email.email }}
+                      {% if email.emailType %}<span class="muted">({{ email.emailType }})</span>{% endif %}
+                      {% if email.last_seen %}<div class="muted">Last seen: {{ email.last_seen }}</div>{% endif %}
+                    </li>
+                  {% endfor %}
+                </ul>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Address Information -->
+        <div class="section">
+          <h3>Address Information</h3>
+          {% if result.identity.address %}
+            <div class="address">
+              <h4>Current Address</h4>
+              <p>{{ result.identity.address.formattedAddress }}</p>
+              <div class="muted">
+                {% if result.identity.address.last_seen %}Last seen: {{ result.identity.address.last_seen }}{% endif %}
+              </div>
+            </div>
+          {% endif %}
+
+          {% if result.identity.addressHistory and result.identity.addressHistory|length > 0 %}
+            <div style="margin-top: 1rem;">
+              <h4>Previous Addresses</h4>
+              <div class="grid">
+                {% for address in result.identity.addressHistory %}
+                  <div class="address">
+                    <p>{{ address.formattedAddress }}</p>
+                    <div class="muted">
+                      {% if address.last_seen %}Last seen: {{ address.last_seen }}{% endif %}
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+          {% endif %}
+        </div>
+
+        <!-- Demographics -->
+        {% if result.demographics %}
+          <div class="section">
+            <h3>Demographic Information</h3>
+            <div class="grid">
+              <div>
+                <p><strong>Age:</strong> {{ result.demographics.age|default('N/A') }}</p>
+                <p><strong>Gender:</strong> {{ result.demographics.gender|default('N/A') }}</p>
+              </div>
+              {% if result.demographics.dob %}
+                <div>
+                  <p><strong>Date of Birth:</strong> {{ result.demographics.dob }}</p>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        {% endif %}
+
+        <!-- Metadata -->
+        <div class="section" style="background: #f8f9fa; padding: 1rem; border-radius: 4px;">
+          <h3>Search Information</h3>
+          <div class="grid">
+            <div>
+              <p><strong>Match Confidence:</strong> 
+                {% if result.match_confidence == 'high' %}
+                  <span class="match-confidence high-confidence">High</span>
+                {% elif result.match_confidence == 'medium' %}
+                  <span class="match-confidence medium-confidence">Medium</span>
+                {% else %}
+                  <span class="match-confidence low-confidence">Low</span>
+                {% endif %}
+              </p>
+              <p><strong>Request ID:</strong> {{ result.requestId }}</p>
+            </div>
+            <div>
+              <p><strong>Search Date:</strong> {{ result.requestDate }}</p>
+              <p><strong>Credits Used:</strong> {{ result.credits|default('N/A') }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+  </main>
+</body>
+</html>
