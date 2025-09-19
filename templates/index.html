@@ -5,12 +5,101 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Skip Trace Lookup — RealEstateAPI</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
-  <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
-  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-  <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
   <style>
     body { padding: 1rem; }
     .muted { color: #666; font-size: 0.9rem; }
+    
+    /* Table container */
+    .table-container {
+      width: 100%;
+      overflow-x: auto;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      max-height: 70vh;
+    }
+    
+    /* Table styles */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+    
+    /* Table header */
+    th {
+      padding: 0.75rem 0.5rem;
+      text-align: left;
+      border-bottom: 2px solid #ddd;
+      background-color: #f5f5f5;
+      white-space: nowrap;
+      position: relative;
+      min-width: 100px;
+    }
+    
+    /* Table cells */
+    td {
+      padding: 0.5rem;
+      border-bottom: 1px solid #eee;
+      vertical-align: top;
+      word-wrap: break-word;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    /* Text wrapping for specific columns */
+    td:nth-child(5),  /* Property Address */
+    td:nth-child(6) { /* Sale Location */
+      white-space: normal;
+      max-width: 300px;
+      line-height: 1.4;
+      max-height: 4.2em;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+    }
+    
+    /* No wrap for specific columns */
+    td:nth-child(1),  /* Prev. Sale */
+    td:nth-child(2),  /* Next Sale */
+    td:nth-child(3),  /* Time */
+    td:nth-child(4),  /* File # */
+    td:nth-child(7),  /* Opening Bid */
+    td:nth-child(8) { /* Max Bid */
+      white-space: nowrap;
+    }
+    
+    /* Monospace for file numbers */
+    td:nth-child(4) {
+      font-family: monospace;
+    }
+    
+    /* Right align numeric columns */
+    td:nth-child(7),
+    td:nth-child(8) {
+      text-align: right;
+    }
+    
+    /* Row striping */
+    .row-even { background-color: #f9f9f9; }
+    .row-odd { background-color: #ffffff; }
+    
+    /* Column resizing */
+    .resize-handle {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 5px;
+      height: 100%;
+      background: #ddd;
+      cursor: col-resize;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    
+    th:hover .resize-handle {
+      opacity: 1;
+    }
     .search-section { margin-bottom: 1.5rem; }
     .search-section h3 { 
       border-bottom: 1px solid #eee; 
@@ -23,63 +112,7 @@
       padding-top: 1rem;
       border-top: 1px solid #eee;
     }
-    /* Make resizable by default */
-    .resizable {
-      overflow: hidden;
-      position: relative;
-    }
-    
-    /* Add handle for resizing */
-    .resizable .ui-resizable-e {
-      cursor: col-resize;
-      width: 7px;
-      right: -5px;
-      top: 0;
-      bottom: 0;
-      background: #ddd;
-      position: absolute;
-      opacity: 0;
-      transition: opacity 0.2s;
-    }
-    
-    /* Show handle on hover */
-    .resizable:hover .ui-resizable-e {
-      opacity: 1;
-    }
-    
-    /* Table specific styles */
-    .resizable th {
-      position: relative;
-      min-width: 50px; /* Minimum column width */
-    }
-    
-    /* Make sure the table fills its container */
-    table {
-      table-layout: fixed;
-      width: 100%;
-    }
   </style>
-  <script>
-    $(document).ready(function() {
-      // Make table headers resizable
-      $("th").resizable({
-        handles: 'e',
-        minWidth: 50, // Minimum width in pixels
-        resize: function(event, ui) {
-          // Update the width of the corresponding cells in the body
-          const index = $(this).index() + 1;
-          $('td:nth-child(' + index + ')').width(ui.size.width);
-        }
-      }).addClass('resizable');
-      
-      // Initialize column widths based on header widths
-      $('th').each(function() {
-        const index = $(this).index() + 1;
-        const width = $(this).width();
-        $('td:nth-child(' + index + ')').width(width);
-      });
-    });
-  </script>
 </head>
 <body>
   <main class="container">
@@ -147,15 +180,26 @@
 
       {% if contacts %}
       <div style="margin-top: 1.5rem;">
-        <h4>Property Listings ({{ contacts|length }} total)</h4>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 1rem;">
+          <h4 style="margin: 0;">Property Listings (<span id="rowCount">{{ contacts|length }}</span> total)</h4>
+          <div style="position: relative; min-width: 300px;">
+            <input 
+              type="text" 
+              id="searchInput" 
+              placeholder="Filter by address..." 
+              style="width: 100%; padding: 0.5rem 1rem; border: 1px solid #ddd; border-radius: 4px;"
+              autocomplete="off"
+            >
+            <div id="suggestions" style="position: absolute; width: 100%; max-height: 200px; overflow-y: auto; background: white; border: 1px solid #ddd; border-top: none; border-radius: 0 0 4px 4px; display: none; z-index: 1000;"></div>
+          </div>
+        </div>
         <div style="margin: 0.5rem 0; font-size: 0.9em; color: #666;">
           Scroll horizontally to view all columns
         </div>
-        <div style="max-height: 70vh; overflow: auto; border: 1px solid #e0e0e0; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-          <div style="min-width: 1600px; overflow-x: auto;">
-            <table style="width: 100%; border-collapse: collapse; font-size: 0.9em;">
-              <thead>
-                <tr style="background-color: #f5f5f5;">
+        <div class="table-container">
+          <table style="font-size: 0.9em;">
+            <thead>
+              <tr>
                   <th style="padding: 0.75rem 0.5rem; text-align: left; border-bottom: 2px solid #ddd; white-space: nowrap; min-width: 100px;">Prev. Sale</th>
                   <th style="padding: 0.75rem 0.5rem; text-align: left; border-bottom: 2px solid #ddd; white-space: nowrap; min-width: 100px;">Next Sale</th>
                   <th style="padding: 0.75rem 0.5rem; text-align: left; border-bottom: 2px solid #ddd; white-space: nowrap;">Time</th>
@@ -166,27 +210,23 @@
                   <th style="padding: 0.75rem 0.5rem; text-align: right; border-bottom: 2px solid #ddd; white-space: nowrap;">Max Bid</th>
                 </tr>
               </thead>
-              <style>
-                .row-even { background-color: #f9f9f9; }
-                .row-odd { background-color: #ffffff; }
-              </style>
               <tbody>
                 {% for contact in contacts %}
-                <tr class="{% if loop.index % 2 == 0 %}row-even{% else %}row-odd{% endif %}" style="border-bottom: 1px solid #eee;">
-                  <td style="padding: 0.5rem; border-bottom: 1px solid #eee; white-space: nowrap;">{{ contact.sale_date_previous or '-' }}</td>
-                  <td style="padding: 0.5rem; border-bottom: 1px solid #eee; white-space: nowrap; font-weight: 500;">{{ contact.sale_date_projected or '-' }}</td>
-                  <td style="padding: 0.5rem; border-bottom: 1px solid #eee; white-space: nowrap;">{{ contact.sale_time or '-' }}</td>
-                  <td style="padding: 0.5rem; border-bottom: 1px solid #eee; white-space: nowrap; font-family: monospace;">{{ contact.file_number or '-' }}</td>
-                  <td style="padding: 0.5rem; border-bottom: 1px solid #eee;">{{ contact.property_address or '-' }}</td>
-                  <td style="padding: 0.5rem; border-bottom: 1px solid #eee; max-width: 300px; word-wrap: break-word; font-size: 0.9em; line-height: 1.4;">{{ contact.place_of_sale or '-' }}</td>
-                  <td style="padding: 0.5rem; border-bottom: 1px solid #eee; text-align: right; white-space: nowrap;">
+                <tr class="{% if loop.index % 2 == 0 %}row-even{% else %}row-odd{% endif %}">
+                  <td title="{{ contact.sale_date_previous or '' }}">{{ contact.sale_date_previous or '-' }}</td>
+                  <td title="{{ contact.sale_date_projected or '' }}" style="font-weight: 500;">{{ contact.sale_date_projected or '-' }}</td>
+                  <td title="{{ contact.sale_time or '' }}">{{ contact.sale_time or '-' }}</td>
+                  <td title="{{ contact.file_number or '' }}">{{ contact.file_number or '-' }}</td>
+                  <td title="{{ contact.property_address or '' }}">{{ contact.property_address or '-' }}</td>
+                  <td title="{{ contact.place_of_sale or '' }}" style="font-size: 0.9em;">{{ contact.place_of_sale or '-' }}</td>
+                  <td>
                     {% if contact.opening_bid_amount %}
                       ${{ "%0.2f"|format(contact.opening_bid_amount|float) }}
                     {% else %}
                       -
                     {% endif %}
                   </td>
-                  <td style="padding: 0.5rem; border-bottom: 1px solid #eee; text-align: right; white-space: nowrap; font-weight: 500;">
+                  <td style="font-weight: 500;">
                     {% if contact.max_bid_amount %}
                       ${{ "%0.2f"|format(contact.max_bid_amount|float) }}
                     {% else %}
@@ -296,5 +336,157 @@
       {% endif %}
     {% endwith %}
   </main>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const thEls = document.querySelectorAll('th');
+      let startX;
+      let startWidth;
+      let th;
+      let index;
+      let isResizing = false;
+
+      // Add resize handle to each header
+      thEls.forEach((thEl, i) => {
+        // Skip the last column
+        if (i < thEls.length - 1) {
+          const handle = document.createElement('div');
+          handle.className = 'resize-handle';
+          thEl.appendChild(handle);
+          thEl.style.position = 'relative';
+          thEl.style.cursor = 'col-resize';
+          
+          thEl.addEventListener('mousedown', (e) => {
+            if (e.target === handle || e.offsetX > thEl.offsetWidth - 10) {
+              isResizing = true;
+              th = thEl;
+              index = i;
+              startX = e.pageX;
+              startWidth = th.offsetWidth;
+              document.body.style.cursor = 'col-resize';
+              document.body.style.userSelect = 'none';
+              e.preventDefault();
+            }
+          });
+        }
+      });
+
+      // Handle mouse move for resizing
+      document.addEventListener('mousemove', (e) => {
+        if (!isResizing) return;
+        
+        const newWidth = startWidth + (e.pageX - startX);
+        if (newWidth > 50) { // Minimum width of 50px
+          th.style.width = `${newWidth}px`;
+          
+          // Update all cells in this column
+          const cells = document.querySelectorAll(`td:nth-child(${index + 1})`);
+          cells.forEach(cell => {
+            cell.style.width = `${newWidth}px`;
+          });
+        }
+      });
+
+      // Clean up on mouse up
+      document.addEventListener('mouseup', () => {
+        if (isResizing) {
+          isResizing = false;
+          document.body.style.cursor = '';
+          document.body.style.userSelect = '';
+        }
+      });
+
+      // Prevent text selection while resizing
+      document.addEventListener('selectstart', (e) => {
+        if (isResizing) {
+          e.preventDefault();
+        }
+      });
+    });
+  </script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const searchInput = document.getElementById('searchInput');
+      const suggestions = document.getElementById('suggestions');
+      const tableRows = Array.from(document.querySelectorAll('tbody tr'));
+      const rowCount = document.getElementById('rowCount');
+      let allAddresses = [];
+      
+      // Extract all unique addresses for suggestions
+      tableRows.forEach(row => {
+        const address = row.cells[4].textContent.trim(); // Address is in the 5th column
+        if (address && address !== '-' && !allAddresses.includes(address)) {
+          allAddresses.push(address);
+        }
+      });
+      
+      // Filter table based on search input
+      function filterTable(searchTerm) {
+        const term = searchTerm.toLowerCase();
+        let visibleCount = 0;
+        
+        tableRows.forEach(row => {
+          const address = row.cells[4].textContent.toLowerCase();
+          const isVisible = address.includes(term);
+          row.style.display = isVisible ? '' : 'none';
+          if (isVisible) visibleCount++;
+        });
+        
+        rowCount.textContent = visibleCount;
+      }
+      
+      // Show suggestions based on input
+      function showSuggestions(term) {
+        if (!term) {
+          suggestions.style.display = 'none';
+          return;
+        }
+        
+        const filtered = allAddresses.filter(addr => 
+          addr.toLowerCase().includes(term.toLowerCase())
+        );
+        
+        if (filtered.length > 0) {
+          suggestions.innerHTML = filtered.slice(0, 5).map(addr => 
+            `<div style="padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #eee;" 
+                onclick="document.getElementById('searchInput').value = this.textContent; filterTable(this.textContent); this.parentNode.style.display = 'none';">
+              ${addr}
+            </div>`
+          ).join('');
+          suggestions.style.display = 'block';
+        } else {
+          suggestions.style.display = 'none';
+        }
+      }
+      
+      // Event listeners
+      searchInput.addEventListener('input', (e) => {
+        const term = e.target.value.trim();
+        filterTable(term);
+        showSuggestions(term);
+      });
+      
+      searchInput.addEventListener('focus', () => {
+        if (searchInput.value.trim()) {
+          showSuggestions(searchInput.value.trim());
+        }
+      });
+      
+      document.addEventListener('click', (e) => {
+        if (e.target !== searchInput) {
+          suggestions.style.display = 'none';
+        }
+      });
+      
+      // Close suggestions when pressing Escape
+      searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          suggestions.style.display = 'none';
+        }
+      });
+      
+      // Initialize with all rows visible
+      rowCount.textContent = tableRows.length;
+    });
+  </script>
 </body>
 </html>
