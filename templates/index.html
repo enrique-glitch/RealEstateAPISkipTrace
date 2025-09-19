@@ -56,6 +56,23 @@
       vertical-align: top;
     }
     
+    /* Property address cell interactions */
+    .property-address-cell:hover {
+      background-color: #e6f3ff !important;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .property-address-cell.selected {
+      background-color: #4CAF50 !important;
+      color: white;
+      font-weight: bold;
+      box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+    }
+    
+    .property-address-cell.selected:hover {
+      background-color: #45a049 !important;
+    }
+    
     td:nth-child(6) { /* Sale Location */
       white-space: nowrap;
       max-width: 350px;
@@ -233,7 +250,11 @@
                   <td title="{{ contact.sale_date_projected or '' }}" style="font-weight: 500;">{{ contact.sale_date_projected or '-' }}</td>
                   <td title="{{ contact.sale_time or '' }}">{{ contact.sale_time or '-' }}</td>
                   <td title="{{ contact.file_number or '' }}">{{ contact.file_number or '-' }}</td>
-                  <td title="{{ contact.property_address or '' }}" style="background-color: #f0f8ff;">
+                  <td title="{{ contact.property_address or '' }}" 
+                      class="property-address-cell" 
+                      style="background-color: #f0f8ff; cursor: pointer; transition: background-color 0.2s;"
+                      data-address="{{ contact.property_address or '' }}"
+                      onclick="selectAddress(this)">
                     {{ contact.property_address or '-' }}
                   </td>
                   <td title="{{ contact.place_of_sale or '' }}" class="sale-location" style="font-size: 0.9em; background-color: #f0fff0;">
@@ -507,6 +528,147 @@
       // Initialize with all rows visible
       rowCount.textContent = tableRows.length;
     });
+  </script>
+  <script>
+    // Address selection functionality
+    function selectAddress(cell) {
+      // Remove previous selection
+      const previousSelected = document.querySelector('.property-address-cell.selected');
+      if (previousSelected) {
+        previousSelected.classList.remove('selected');
+      }
+      
+      // Add selection to clicked cell
+      cell.classList.add('selected');
+      
+      // Get the address data
+      const fullAddress = cell.getAttribute('data-address');
+      if (!fullAddress || fullAddress === '-') {
+        return;
+      }
+      
+      // Parse the address (format: "Street Address, City State, ZIP")
+      const addressParts = parseAddress(fullAddress);
+      
+      // Fill the form fields
+      fillSkipTraceForm(addressParts);
+      
+      // Scroll to the form
+      scrollToForm();
+      
+      // Show success message
+      showAddressSelectedMessage(fullAddress);
+    }
+    
+    function parseAddress(fullAddress) {
+      // Parse address format: "12846 Tarragon Way, Riverside CA, 92503"
+      const parts = fullAddress.split(',').map(part => part.trim());
+      
+      let streetAddress = '';
+      let city = '';
+      let state = '';
+      let zip = '';
+      
+      if (parts.length >= 3) {
+        streetAddress = parts[0];
+        
+        // Parse "City State" from second part
+        const cityStatePart = parts[1];
+        const cityStateMatch = cityStatePart.match(/^(.+)\s+([A-Z]{2})$/);
+        if (cityStateMatch) {
+          city = cityStateMatch[1].trim();
+          state = cityStateMatch[2].trim();
+        } else {
+          city = cityStatePart;
+        }
+        
+        // ZIP from third part
+        zip = parts[2];
+      } else if (parts.length === 2) {
+        streetAddress = parts[0];
+        city = parts[1];
+      } else {
+        streetAddress = fullAddress;
+      }
+      
+      return { streetAddress, city, state, zip };
+    }
+    
+    function fillSkipTraceForm(addressParts) {
+      // Fill the address field
+      const addressField = document.querySelector('input[name="address"]');
+      if (addressField) {
+        addressField.value = addressParts.streetAddress;
+      }
+      
+      // Fill the city field
+      const cityField = document.querySelector('input[name="city"]');
+      if (cityField) {
+        cityField.value = addressParts.city;
+      }
+      
+      // Fill the state field
+      const stateField = document.querySelector('input[name="state"]');
+      if (stateField) {
+        stateField.value = addressParts.state;
+      }
+      
+      // Fill the zip field
+      const zipField = document.querySelector('input[name="zip_code"]');
+      if (zipField) {
+        zipField.value = addressParts.zip;
+      }
+      
+      // Add visual feedback to filled fields
+      [addressField, cityField, stateField, zipField].forEach(field => {
+        if (field && field.value) {
+          field.style.backgroundColor = '#e8f5e8';
+          field.style.border = '2px solid #4CAF50';
+          setTimeout(() => {
+            field.style.backgroundColor = '';
+            field.style.border = '';
+          }, 2000);
+        }
+      });
+    }
+    
+    function scrollToForm() {
+      const form = document.querySelector('form[action*="search"]');
+      if (form) {
+        form.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'start' 
+        });
+      }
+    }
+    
+    function showAddressSelectedMessage(address) {
+      // Create a temporary message
+      const message = document.createElement('div');
+      message.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #4CAF50;
+        color: white;
+        padding: 12px 20px;
+        border-radius: 4px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        z-index: 1000;
+        font-size: 14px;
+        max-width: 300px;
+      `;
+      message.textContent = `Address selected: ${address}`;
+      
+      document.body.appendChild(message);
+      
+      // Remove message after 3 seconds
+      setTimeout(() => {
+        if (message.parentNode) {
+          message.parentNode.removeChild(message);
+        }
+      }, 3000);
+    }
   </script>
 </body>
 </html>
