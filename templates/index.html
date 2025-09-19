@@ -25,13 +25,127 @@
 <body>
   <main class="container">
     <h1>Skip Trace Lookup</h1>
-    <p class="muted">Enter any available information to perform a skip trace lookup</p>
+    <p class="muted">Upload a CSV file or enter search information below</p>
 
-    {% if error %}
-      <article style="background: #fff3f3; border-left: 4px solid #ff6b6b; padding: 1rem; margin-bottom: 1.5rem;">
-        <strong>Error:</strong> {{ error }}
-      </article>
-    {% endif %}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          {% if category == 'error' %}
+            <article style="background: #fff3f3; border-left: 4px solid #ff6b6b; padding: 1rem; margin-bottom: 1.5rem;">
+          {% else %}
+            <article style="background: #f0f8ff; border-left: 4px solid #4CAF50; padding: 1rem; margin-bottom: 1.5rem;">
+          {% endif %}
+            {{ message }}
+          </article>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="upload-section" style="background: #f8f9fa; padding: 1.5rem; border-radius: 4px; margin-bottom: 2rem;">
+      <h3>Upload Contacts CSV</h3>
+      <form method="post" enctype="multipart/form-data" action="{{ url_for('upload') }}" id="uploadForm">
+        <div class="grid">
+          <div>
+            <label for="file">Choose CSV file</label>
+            <input type="file" id="file" name="file" accept=".csv" required>
+            <div id="fileInfo" style="margin-top: 0.5rem; font-size: 0.9rem; color: #666;"></div>
+          </div>
+          <div style="display: flex; align-items: flex-end;">
+            <button type="submit" class="secondary" id="uploadButton">Upload</button>
+          </div>
+        </div>
+      </form>
+      <script>
+        // Show selected file name
+        document.getElementById('file').addEventListener('change', function(e) {
+          const fileInfo = document.getElementById('fileInfo');
+          if (this.files.length > 0) {
+            fileInfo.textContent = 'Selected: ' + this.files[0].name;
+          } else {
+            fileInfo.textContent = '';
+          }
+        });
+
+        // Handle form submission
+        document.getElementById('uploadForm').addEventListener('submit', function(e) {
+          const fileInput = document.getElementById('file');
+          const uploadButton = document.getElementById('uploadButton');
+          
+          if (fileInput.files.length === 0) {
+            e.preventDefault();
+            alert('Please select a file first');
+            return false;
+          }
+          
+          // Disable button and show loading state
+          uploadButton.disabled = true;
+          uploadButton.textContent = 'Uploading...';
+          
+          // The form will be submitted normally
+          return true;
+        });
+      </script>
+
+      {% if contacts %}
+      <div style="margin-top: 1.5rem;">
+        <h4>Property Listings ({{ contacts|length }} total)</h4>
+        <div style="margin: 0.5rem 0; font-size: 0.9em; color: #666;">
+          Scroll horizontally to view all columns
+        </div>
+        <div style="max-height: 70vh; overflow: auto; border: 1px solid #e0e0e0; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+          <div style="min-width: 1600px; overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.9em;">
+              <thead>
+                <tr style="background-color: #f5f5f5;">
+                  <th style="padding: 0.75rem 0.5rem; text-align: left; border-bottom: 2px solid #ddd; white-space: nowrap; min-width: 100px;">Prev. Sale</th>
+                  <th style="padding: 0.75rem 0.5rem; text-align: left; border-bottom: 2px solid #ddd; white-space: nowrap; min-width: 100px;">Next Sale</th>
+                  <th style="padding: 0.75rem 0.5rem; text-align: left; border-bottom: 2px solid #ddd; white-space: nowrap;">Time</th>
+                  <th style="padding: 0.75rem 0.5rem; text-align: left; border-bottom: 2px solid #ddd; white-space: nowrap;">File #</th>
+                  <th style="padding: 0.75rem 0.5rem; text-align: left; border-bottom: 2px solid #ddd; min-width: 200px;">Property Address</th>
+                  <th style="padding: 0.75rem 0.5rem; text-align: left; border-bottom: 2px solid #ddd; min-width: 300px;">Sale Location</th>
+                  <th style="padding: 0.75rem 0.5rem; text-align: right; border-bottom: 2px solid #ddd; white-space: nowrap;">Opening Bid</th>
+                  <th style="padding: 0.75rem 0.5rem; text-align: right; border-bottom: 2px solid #ddd; white-space: nowrap;">Max Bid</th>
+                </tr>
+              </thead>
+              <style>
+                .row-even { background-color: #f9f9f9; }
+                .row-odd { background-color: #ffffff; }
+              </style>
+              <tbody>
+                {% for contact in contacts %}
+                <tr class="{% if loop.index % 2 == 0 %}row-even{% else %}row-odd{% endif %}" style="border-bottom: 1px solid #eee;">
+                  <td style="padding: 0.5rem; border-bottom: 1px solid #eee; white-space: nowrap;">{{ contact.sale_date_previous or '-' }}</td>
+                  <td style="padding: 0.5rem; border-bottom: 1px solid #eee; white-space: nowrap; font-weight: 500;">{{ contact.sale_date_projected or '-' }}</td>
+                  <td style="padding: 0.5rem; border-bottom: 1px solid #eee; white-space: nowrap;">{{ contact.sale_time or '-' }}</td>
+                  <td style="padding: 0.5rem; border-bottom: 1px solid #eee; white-space: nowrap; font-family: monospace;">{{ contact.file_number or '-' }}</td>
+                  <td style="padding: 0.5rem; border-bottom: 1px solid #eee;">{{ contact.property_address or '-' }}</td>
+                  <td style="padding: 0.5rem; border-bottom: 1px solid #eee; max-width: 300px; word-wrap: break-word; font-size: 0.9em; line-height: 1.4;">{{ contact.place_of_sale or '-' }}</td>
+                  <td style="padding: 0.5rem; border-bottom: 1px solid #eee; text-align: right; white-space: nowrap;">
+                    {% if contact.opening_bid_amount %}
+                      ${{ "%0.2f"|format(contact.opening_bid_amount|float) }}
+                    {% else %}
+                      -
+                    {% endif %}
+                  </td>
+                  <td style="padding: 0.5rem; border-bottom: 1px solid #eee; text-align: right; white-space: nowrap; font-weight: 500;">
+                    {% if contact.max_bid_amount %}
+                      ${{ "%0.2f"|format(contact.max_bid_amount|float) }}
+                    {% else %}
+                      -
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div style="margin-top: 0.5rem; font-size: 0.85em; color: #666; text-align: right;">
+          Showing all {{ contacts|length }} records
+        </div>
+      </div>
+      {% endif %}
+    </div>
 
     <article>
       <form method="post" action="{{ url_for('search') }}">

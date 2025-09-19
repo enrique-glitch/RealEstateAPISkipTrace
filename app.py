@@ -2,10 +2,13 @@ import os
 import json
 import hashlib
 import sqlite3
+import io
+import csv
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask_session import Session
 from dotenv import load_dotenv
 
 from reapi_client import SkipTraceClient, MatchRequirements
@@ -16,7 +19,13 @@ load_dotenv()
 DB_PATH = os.path.join(os.path.dirname(__file__), "cache.db")
 
 app = Flask(__name__)
-app.secret_key = os.getenv("SECRET_KEY", "change-this-secret")
+app.secret_key = os.getenv("SECRET_KEY", "dev-secret-key-123")
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload size
+app.config['UPLOAD_EXTENSIONS'] = ['.csv']
+app.config['SESSION_TYPE'] = 'filesystem'
+
+# Initialize session
+Session(app)
 
 # App settings
 CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", "604800"))  # default 7 days
@@ -122,15 +131,14 @@ def detail_cache_get(property_id: str) -> Optional[Dict[str, Any]]:
         return None
 
 
- 
-
-
 @app.route("/")
 def index():
+    contacts = session.get('contacts', [])
     return render_template(
         "index.html",
         cost_saver_mode=COST_SAVER_MODE,
         test_mode=TEST_MODE,
+        contacts=contacts
     )
 
 
@@ -340,6 +348,106 @@ def _extract_address(detail: Optional[Dict[str, Any]]) -> Optional[str]:
     addr = detail.get("address") or {}
     parts = [addr.get("address"), addr.get("city"), addr.get("state"), addr.get("zip")]
     return ", ".join([p for p in parts if p]) or None
+
+
+@app.route("/upload", methods=["POST"])
+def upload():
+    print("\n=== UPLOAD ROUTE STARTED ===")
+    print(f"Request form data: {request.form}")
+    print(f"Request files: {request.files}")
+    
+    if 'file' not in request.files:
+        print("ERROR: No file part in request")
+        flash('No file part in request', 'error')
+        return redirect(url_for('index'))
+        
+    file = request.files['file']
+    print(f"File received - Filename: {file.filename}, Content Type: {file.content_type}")
+    
+    if file.filename == '':
+        print("ERROR: No file selected")
+        flash('No file selected', 'error')
+        return redirect(url_for('index'))
+    
+    if not file.filename.lower().endswith('.csv'):
+        print(f"ERROR: Invalid file type: {file.filename}")
+        flash('Please upload a valid CSV file', 'error')
+        return redirect(url_for('index'))
+    
+    try:
+        print("\nReading file content...")
+        file_content = file.stream.read()
+        print(f"Raw file content (first 100 chars): {file_content[:100]}")
+        
+        # Try to decode as UTF-8
+        try:
+            file_content = file_content.decode('utf-8')
+        except UnicodeDecodeError:
+            # If UTF-8 fails, try with a different encoding
+            file_content = file_content.decode('latin-1')
+            
+        print(f"File content length: {len(file_content)} characters")
+        
+        # Save a copy of the uploaded file for debugging
+        debug_file = os.path.join(os.path.dirname(__file__), 'debug_upload.csv')
+        with open(debug_file, 'w', encoding='utf-8') as f:
+            f.write(file_content)
+        print(f"Saved debug copy to: {debug_file}")
+        
+        # Process the CSV
+        stream = io.StringIO(file_content)
+        csv_reader = csv.DictReader(stream)
+        
+        # Get fieldnames and log them
+        fieldnames = csv_reader.fieldnames or []
+        print(f"CSV fieldnames: {fieldnames}")
+        
+        # Process rows
+        contacts = []
+        for i, row in enumerate(csv_reader, 1):
+            # Clean and normalize the row data
+            contact = {}
+            for key, value in row.items():
+                # Convert all keys to lowercase and replace spaces with underscores
+                clean_key = key.strip().lower().replace(' ', '_')
+                # Clean the value
+                clean_value = value.strip() if isinstance(value, str) else ''
+                contact[clean_key] = clean_value
+            
+            # Ensure all required fields exist with empty strings as default
+            required_fields = [
+                'sale_date_previous', 'sale_date_projected', 'sale_time',
+                'file_number', 'property_address', 'place_of_sale',
+                'opening_bid_amount', 'max_bid_amount'
+            ]
+            
+            for field in required_fields:
+                if field not in contact:
+                    contact[field] = ''
+            
+            print(f"Processed row {i}")
+            contacts.append(contact)
+            
+            # Log progress every 100 rows
+            if i % 100 == 0:
+                print(f"Processed {i} rows...")
+        
+        print(f"\nProcessed {len(contacts)} contacts")
+        
+        # Store in session
+        session['contacts'] = contacts
+        print("Contacts stored in session")
+        
+        flash(f'Successfully uploaded {len(contacts)} contacts', 'success')
+        
+    except Exception as e:
+        import traceback
+        error_msg = f"Error processing file: {str(e)}\n\n{traceback.format_exc()}"
+        print(f"\nERROR: {error_msg}")
+        flash('Error processing file. Please check the file format and try again.', 'error')
+    
+    print("=== UPLOAD ROUTE COMPLETED ===\n")
+    return redirect(url_for('index'))
 
 
 if __name__ == "__main__":
