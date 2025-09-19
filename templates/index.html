@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Skip Trace Lookup — RealEstateAPI</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
   <style>
     body { padding: 1rem; }
     .muted { color: #666; font-size: 0.9rem; }
@@ -20,7 +23,63 @@
       padding-top: 1rem;
       border-top: 1px solid #eee;
     }
+    /* Make resizable by default */
+    .resizable {
+      overflow: hidden;
+      position: relative;
+    }
+    
+    /* Add handle for resizing */
+    .resizable .ui-resizable-e {
+      cursor: col-resize;
+      width: 7px;
+      right: -5px;
+      top: 0;
+      bottom: 0;
+      background: #ddd;
+      position: absolute;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    
+    /* Show handle on hover */
+    .resizable:hover .ui-resizable-e {
+      opacity: 1;
+    }
+    
+    /* Table specific styles */
+    .resizable th {
+      position: relative;
+      min-width: 50px; /* Minimum column width */
+    }
+    
+    /* Make sure the table fills its container */
+    table {
+      table-layout: fixed;
+      width: 100%;
+    }
   </style>
+  <script>
+    $(document).ready(function() {
+      // Make table headers resizable
+      $("th").resizable({
+        handles: 'e',
+        minWidth: 50, // Minimum width in pixels
+        resize: function(event, ui) {
+          // Update the width of the corresponding cells in the body
+          const index = $(this).index() + 1;
+          $('td:nth-child(' + index + ')').width(ui.size.width);
+        }
+      }).addClass('resizable');
+      
+      // Initialize column widths based on header widths
+      $('th').each(function() {
+        const index = $(this).index() + 1;
+        const width = $(this).width();
+        $('td:nth-child(' + index + ')').width(width);
+      });
+    });
+  </script>
 </head>
 <body>
   <main class="container">
