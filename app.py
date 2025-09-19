@@ -134,6 +134,15 @@ def detail_cache_get(property_id: str) -> Optional[Dict[str, Any]]:
 @app.route("/")
 def index():
     contacts = session.get('contacts', [])
+    
+    # Debug: print first contact to see the data structure
+    if contacts:
+        print(f"\nDEBUG - First contact data:")
+        first_contact = contacts[0]
+        print(f"property_address: {repr(first_contact.get('property_address', 'NOT_FOUND'))}")
+        print(f"place_of_sale: {repr(first_contact.get('place_of_sale', 'NOT_FOUND'))}")
+        print(f"All keys: {list(first_contact.keys())}")
+    
     return render_template(
         "index.html",
         cost_saver_mode=COST_SAVER_MODE,
@@ -350,6 +359,32 @@ def _extract_address(detail: Optional[Dict[str, Any]]) -> Optional[str]:
     return ", ".join([p for p in parts if p]) or None
 
 
+@app.route("/clear-session")
+def clear_session():
+    session.clear()
+    flash('Session cleared. Please upload your CSV file again.', 'success')
+    return redirect(url_for('index'))
+
+
+@app.route("/debug")
+def debug():
+    contacts = session.get('contacts', [])
+    debug_info = {
+        'total_contacts': len(contacts),
+        'first_contact': contacts[0] if contacts else None,
+        'sample_keys': list(contacts[0].keys()) if contacts else [],
+        'property_address_sample': contacts[0].get('property_address', 'NOT_FOUND') if contacts else 'NO_CONTACTS',
+        'place_of_sale_sample': contacts[0].get('place_of_sale', 'NOT_FOUND') if contacts else 'NO_CONTACTS'
+    }
+    
+    return f"""
+    <h1>Debug Information</h1>
+    <pre>{json.dumps(debug_info, indent=2)}</pre>
+    <br>
+    <a href="/">Back to main page</a>
+    """
+
+
 @app.route("/upload", methods=["POST"])
 def upload():
     print("\n=== UPLOAD ROUTE STARTED ===")
@@ -388,12 +423,6 @@ def upload():
             
         print(f"File content length: {len(file_content)} characters")
         
-        # Save a copy of the uploaded file for debugging
-        debug_file = os.path.join(os.path.dirname(__file__), 'debug_upload.csv')
-        with open(debug_file, 'w', encoding='utf-8') as f:
-            f.write(file_content)
-        print(f"Saved debug copy to: {debug_file}")
-        
         # Process the CSV
         stream = io.StringIO(file_content)
         csv_reader = csv.DictReader(stream)
@@ -413,6 +442,19 @@ def upload():
                 # Clean the value
                 clean_value = value.strip() if isinstance(value, str) else ''
                 contact[clean_key] = clean_value
+            
+            # Clean up property address and sale location
+            if 'property_address' in contact:
+                contact['property_address'] = contact['property_address'].strip()
+                
+            # Debug output for the first few rows
+            if i <= 3:
+                print(f"Row {i} - property_address: {repr(contact.get('property_address', ''))}")
+                print(f"Row {i} - place_of_sale: {repr(contact.get('place_of_sale', ''))}")
+                print(f"Row {i} - All keys: {list(contact.keys())}")
+            
+            if 'place_of_sale' in contact:
+                contact['place_of_sale'] = contact['place_of_sale'].strip()
             
             # Ensure all required fields exist with empty strings as default
             required_fields = [

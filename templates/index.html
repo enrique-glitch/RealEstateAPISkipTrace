@@ -48,16 +48,32 @@
     }
     
     /* Text wrapping for specific columns */
-    td:nth-child(5),  /* Property Address */
-    td:nth-child(6) { /* Sale Location */
-      white-space: normal;
-      max-width: 300px;
-      line-height: 1.4;
-      max-height: 4.2em;
-      display: -webkit-box;
-      -webkit-line-clamp: 3;
-      -webkit-box-orient: vertical;
+    td:nth-child(5) {  /* Property Address */
+      white-space: nowrap;
+      max-width: 250px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      vertical-align: top;
     }
+    
+    td:nth-child(6) { /* Sale Location */
+      white-space: nowrap;
+      max-width: 350px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      vertical-align: top;
+    }
+    
+    /* Hide sale location column on mobile, show it below the address */
+    /* @media (max-width: 992px) {
+      th:nth-child(6),
+      td:nth-child(6) {
+        display: none;
+      }
+      .sale-location-mobile {
+        display: block !important;
+      }
+    } */
     
     /* No wrap for specific columns */
     td:nth-child(1),  /* Prev. Sale */
@@ -217,8 +233,12 @@
                   <td title="{{ contact.sale_date_projected or '' }}" style="font-weight: 500;">{{ contact.sale_date_projected or '-' }}</td>
                   <td title="{{ contact.sale_time or '' }}">{{ contact.sale_time or '-' }}</td>
                   <td title="{{ contact.file_number or '' }}">{{ contact.file_number or '-' }}</td>
-                  <td title="{{ contact.property_address or '' }}">{{ contact.property_address or '-' }}</td>
-                  <td title="{{ contact.place_of_sale or '' }}" style="font-size: 0.9em;">{{ contact.place_of_sale or '-' }}</td>
+                  <td title="{{ contact.property_address or '' }}" style="background-color: #f0f8ff;">
+                    {{ contact.property_address or '-' }}
+                  </td>
+                  <td title="{{ contact.place_of_sale or '' }}" class="sale-location" style="font-size: 0.9em; background-color: #f0fff0;">
+                    {{ contact.place_of_sale or '-' }}
+                  </td>
                   <td>
                     {% if contact.opening_bid_amount %}
                       ${{ "%0.2f"|format(contact.opening_bid_amount|float) }}
